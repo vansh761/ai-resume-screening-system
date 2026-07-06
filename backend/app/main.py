@@ -15,6 +15,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.api.v1.api import api_router
 from app.core.config import settings
 from app.core.logging_config import configure_logging, get_logger
 
@@ -34,9 +35,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     configure_logging()
     logger.info(f"Starting {settings.PROJECT_NAME} [{settings.ENVIRONMENT}]")
 
-    # Milestone 2+ will initialize the DB connection pool here.
-    # Milestone 6 will load the sentence-transformer model + FAISS index here,
-    # once at startup, so it's not reloaded on every request.
+    # DB engine + connection pool are created at import time in
+    # app/db/session.py (module-level `engine`). SQLAlchemy's pool is
+    # lazy — the first real connection is only opened on first use, so
+    # nothing extra is needed here for Milestone 2/3.
+    # Milestone 6 will load the sentence-transformer model + FAISS index
+    # here, once at startup, so it's not reloaded on every request.
 
     yield
 
@@ -98,8 +102,7 @@ def create_application() -> FastAPI:
         """
         return {"status": "ok", "environment": settings.ENVIRONMENT}
 
-    # Milestone 2+ will mount versioned routers here, e.g.:
-    # application.include_router(api_router, prefix=settings.API_V1_PREFIX)
+    application.include_router(api_router, prefix=settings.API_V1_PREFIX)
 
     return application
 

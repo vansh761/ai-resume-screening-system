@@ -7,10 +7,12 @@ what CI's very first pipeline stage will check.
 """
 
 from fastapi.testclient import TestClient
+import pytest
 
 from app.main import create_application
 
 
+@pytest.mark.unit
 def test_health_check_returns_ok() -> None:
     """The /health endpoint should return 200 with status 'ok'."""
     app = create_application()
