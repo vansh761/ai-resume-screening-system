@@ -1,15 +1,5 @@
 """
 Shared test fixtures.
-
-Design decision
-----------------
-We override FastAPI's `get_db` dependency to point at a fresh in-memory
-SQLite database, created and torn down per test. This is the standard
-FastAPI testing pattern: `app.dependency_overrides` swaps out a
-dependency for the entire app without touching any endpoint code —
-the endpoints have no idea they're talking to SQLite instead of the
-real Postgres. Each test gets a completely clean database, so tests
-can never leak state into one another regardless of execution order.
 """
 
 from typing import Generator
@@ -18,6 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from app.db.base_class import Base
 from app.db.session import get_db
@@ -27,7 +18,9 @@ from app.main import create_application
 @pytest.fixture()
 def db_session() -> Generator[Session, None, None]:
     engine = create_engine(
-        "sqlite:///:memory:", connect_args={"check_same_thread": False}
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
     )
     Base.metadata.create_all(engine)
     TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
