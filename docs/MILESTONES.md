@@ -95,11 +95,40 @@ role-based route protection distinguishing recruiters from candidates.
 **Bugs hit & root causes:**
 - (Self-caught during review, before it reached you) An `str_replace` edit to `main.py`'s lifespan function accidentally deleted the `yield` statement — would have broken the FastAPI startup/shutdown lifecycle silently. Caught by re-viewing the file immediately after the edit rather than assuming it landed correctly — worth internalizing as a habit: always re-read a file after a mechanical edit, don't trust it blindly.
 - Proactively pinned `bcrypt==4.0.1` alongside `passlib==1.7.4` — newer `bcrypt` (4.1+) removed the `__about__.__version__` attribute that older `passlib` versions probe for, a widely-reported real-world incompatibility that would otherwise surface as a confusing warning or crash on first `pip install`.
+- **`sqlite3.OperationalError: no such table: users` in the end-to-end auth tests, despite `Base.metadata.create_all()` running successfully.** Root cause: FastAPI's `TestClient` dispatches each request to a worker thread (`anyio.to_thread.run_sync`), and SQLAlchemy's default SQLite pooling hands out a *different connection per thread*. The connection that created the tables (test's main thread) and the connection the endpoint queried against (worker thread) were two separate, isolated `:memory:` databases sharing only a URL string. Fixed by forcing `poolclass=StaticPool` so every thread reuses the exact same connection — the standard, documented pattern for testing FastAPI + SQLAlchemy + SQLite together. Notably, the plain model unit tests (no TestClient/HTTP layer involved, single-threaded) never hit this, which is exactly why it only surfaced in the end-to-end auth flow tests.
+- Missing `email-validator` package (a soft dependency Pydantic needs specifically for the `EmailStr` type) surfaced only inside the Docker container after a `requirements.txt` change — root cause was simply forgetting to `docker compose build` after editing dependencies, since Docker caches the `pip install` layer and won't rerun it just because the requirements file on the host changed.
 
 **Status:** ✅ Done — pending your `pytest -m unit` run to confirm on your machine.
 
 ---
 
-## Milestone 4 — Resume Parsing Pipeline
+## Milestone 4 — Resume Upload & Parsing Pipeline
+
+**Goal:** Let candidates upload a PDF/DOCX resume, store it, and
+extract clean plain text from it — the first stage of the AI pipeline.
+
+**What we built:**
+- `app/services/storage/` — a `StorageBackend` ABC + `LocalStorageBackend`, swappable for S3 later with zero changes to calling code
+- `app/ai/text_extraction.py` — `pdfplumber` for PDFs, `python-docx` for DOCX
+- `app/ai/text_cleaning.py` — Unicode normalization, whitespace/blank-line collapsing
+- `app/services/resume_service.py` — orchestrates validation → storage → extraction → DB persistence
+- `app/api/v1/endpoints/resumes.py` — `POST /resumes/upload`, `GET /resumes/`, `GET /resumes/{id}`, all candidate-scoped
+- Tests: storage backend (including a path-traversal rejection test), text cleaning, extraction against real generated PDF/DOCX files (not mocks), and a full HTTP-level upload flow
+
+**Key decisions:**
+- **`pdfplumber` over `pypdf`** — resumes are visually structured (columns, indented bullets), and `pdfplumber` preserves reading order far better; the trade-off (slower) is acceptable since parsing isn't on a hot path and will move to a Celery worker in Milestone 10 anyway.
+- **Storage abstraction (ABC + local implementation)** built now, even though only local disk is implemented — the same Dependency Inversion pattern as the DB layer, so an S3 backend later is an additive change, not a rewrite.
+- **Extension allow-list, not a deny-list**, for upload validation — fails safe: anything not explicitly permitted is rejected, rather than trying to enumerate every dangerous extension.
+- **Parsing failures degrade gracefully, not fatally** — if `pdfplumber`/`python-docx` can't extract text (corrupted file, scanned image with no text layer), the resume record is still created with `parsed_text = None` and the failure is logged, rather than rejecting the whole upload. The file was still saved successfully; that shouldn't be thrown away because parsing had trouble.
+- **404, not 403, for another candidate's resume** — same user-enumeration reasoning as the Milestone 3 login error message: don't reveal that a given resume ID exists at all to someone who doesn't own it.
+- **Tests use real generated PDF/DOCX bytes** (via `fpdf2` and `python-docx` itself), not mocked parser calls — a mock only proves the code calls the mock correctly, never that extraction actually works against a real file.
+
+**Bugs hit & root causes:** *(will be filled in as they occur against your real environment — Milestone 4 syntax-validated but not yet run against your Docker setup)*
+
+**Status:** 🚧 Pending your `docker compose build` + `pytest -m unit` run to confirm.
+
+---
+
+## Milestone 5 — NER, Skill & Experience Extraction
 
 *(in progress — entry will be filled in as this milestone completes)*
