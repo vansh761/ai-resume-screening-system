@@ -26,11 +26,15 @@ from typing import Sequence
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.ai.education_extraction import extract_education_level
+from app.ai.experience_extraction import extract_years_experience
+from app.ai.skill_extraction import extract_skills_for_resume
 from app.ai.text_cleaning import clean_text
 from app.ai.text_extraction import TextExtractionError, extract_text
 from app.core.config import settings
 from app.core.logging_config import get_logger
 from app.models.resume import FileType, Resume
+from app.models.skill import ResumeSkill
 from app.models.user import User
 from app.services.storage import get_storage_backend
 
@@ -106,6 +110,21 @@ def upload_resume(db: Session, candidate: User, filename: str, file_bytes: bytes
     try:
         raw_text = extract_text(file_bytes, file_type)
         resume.parsed_text = clean_text(raw_text)
+        db.commit()
+        db.refresh(resume)
+
+        # Structured extraction (Milestone 5): runs only if text
+        # extraction succeeded -- there's nothing to extract skills or
+        # experience from if we couldn't get plain text in the first
+        # place. Each sub-extractor is independent and best-effort;
+        # a failure in one (e.g., no education keywords found) doesn't
+        # block the others from running.
+        matched_skills = extract_skills_for_resume(db, resume.parsed_text)
+        for skill in matched_skills:
+            db.add(ResumeSkill(resume_id=resume.id, skill_id=skill.id))
+
+        resume.extracted_years_experience = extract_years_experience(resume.parsed_text)
+        resume.extracted_education_level = extract_education_level(resume.parsed_text)
         db.commit()
         db.refresh(resume)
     except TextExtractionError as exc:

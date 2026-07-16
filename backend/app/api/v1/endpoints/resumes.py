@@ -27,12 +27,35 @@ from app.services.resume_service import (
 router = APIRouter(prefix="/resumes", tags=["Resumes"])
 
 
+def _to_resume_read(resume: Resume) -> ResumeRead:
+    """
+    Builds a `ResumeRead` from a `Resume` ORM object.
+
+    Not a plain `ResumeRead.model_validate(resume)` because
+    `extracted_skills` is derived from the `resume_skills` relationship
+    (a list of `ResumeSkill` join rows, each pointing to a `Skill`),
+    not a direct column on `Resume` -- `from_attributes` conversion has
+    no way to know how to flatten that relationship into a list of
+    names on its own.
+    """
+    return ResumeRead(
+        id=resume.id,
+        original_filename=resume.original_filename,
+        file_type=resume.file_type,
+        parsed_text=resume.parsed_text,
+        created_at=resume.created_at,
+        extracted_skills=sorted(rs.skill.name for rs in resume.resume_skills),
+        years_experience=resume.extracted_years_experience,
+        education_level=resume.extracted_education_level,
+    )
+
+
 @router.post("/upload", response_model=ResumeRead, status_code=status.HTTP_201_CREATED)
 async def upload_resume_endpoint(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(UserRole.CANDIDATE)),
-) -> Resume:
+) -> ResumeRead:
     """
     Uploads a resume (PDF or DOCX) for the authenticated candidate.
 
@@ -51,7 +74,7 @@ async def upload_resume_endpoint(
     except FileTooLargeError as exc:
         raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail=str(exc))
 
-    return resume
+    return _to_resume_read(resume)
 
 
 @router.get("/", response_model=list[ResumeSummary])
@@ -78,7 +101,7 @@ def get_my_resume(
     resume_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(UserRole.CANDIDATE)),
-) -> Resume:
+) -> ResumeRead:
     """
     Fetches a single resume, including its full parsed text.
 
@@ -89,4 +112,4 @@ def get_my_resume(
     resume = get_resume_for_candidate(db, resume_id, current_user.id)
     if resume is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resume not found")
-    return resume
+    return _to_resume_read(resume)

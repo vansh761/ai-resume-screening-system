@@ -123,12 +123,42 @@ extract clean plain text from it — the first stage of the AI pipeline.
 - **404, not 403, for another candidate's resume** — same user-enumeration reasoning as the Milestone 3 login error message: don't reveal that a given resume ID exists at all to someone who doesn't own it.
 - **Tests use real generated PDF/DOCX bytes** (via `fpdf2` and `python-docx` itself), not mocked parser calls — a mock only proves the code calls the mock correctly, never that extraction actually works against a real file.
 
-**Bugs hit & root causes:** *(will be filled in as they occur against your real environment — Milestone 4 syntax-validated but not yet run against your Docker setup)*
+**Bugs hit & root causes:**
+- **Tangled `git pull --rebase` conflict.** A prior push attempt (before the StaticPool fix existed) had put an earlier, incomplete version of `conftest.py` on GitHub via a separate session. Rebasing tried to replay multiple divergent local commits on top of that, produced cascading conflicts across unrelated `__pycache__` files (further proof `.gitignore` needed to land earlier — a file that should never have been tracked can't cleanly "conflict," it just keeps causing noise), and one intermediate commit even got force-continued with unresolved `<<<<<<<`/`>>>>>>>` conflict markers still literally inside `app/db/session.py` — which then surfaced as a Python `SyntaxError: invalid decimal literal` at test-collection time (git's conflict markers are not valid Python). **Fix:** rather than resolving conflict-by-conflict through an increasingly confused rebase, aborted entirely (`git rebase --abort`), hard-reset local `main` to match `origin/main` exactly (`git reset --hard origin/main` — safe specifically because it never touches *untracked* files, and all of Milestone 4's new files were still untracked at that point), then cleanly reapplied the one fix that actually mattered (the `conftest.py` StaticPool change) on top of a known-good base. **General lesson:** when a rebase spirals into conflicts across files that shouldn't be tracked at all, untangling each conflict is usually the wrong instinct — resetting to a known-good remote state and cleanly reapplying just the real change is faster and safer.
 
-**Status:** 🚧 Pending your `docker compose build` + `pytest -m unit` run to confirm.
+**Status:** ✅ Done — `38 passed, 1 deselected`.
 
 ---
 
 ## Milestone 5 — NER, Skill & Experience Extraction
+
+**Goal:** Turn clean resume text into structured data: a list of
+skills, total years of experience, and highest education level.
+
+**What we built:**
+- `app/data/skill_seed_data.py` — 182 curated skills, sourced from Microsoft's open-source `SkillsExtractorCognitiveSearch` dataset (properly attributed; see file docstring for provenance and the trade-off of curating a subset vs. the full ~2,100-entry file)
+- `app/db/seed.py` — idempotent seeding script (`python -m app.db.seed`)
+- `app/ai/skill_extraction.py` — spaCy `PhraseMatcher` gazetteer matching against the `Skill` table
+- `app/ai/experience_extraction.py` — regex-based years-of-experience detection
+- `app/ai/education_extraction.py` — keyword-based education level detection, added `EducationLevel` enum + two new `Resume` columns
+- Wired into `resume_service.upload_resume` — runs automatically after text extraction succeeds
+- `ResumeRead` schema extended with `extracted_skills`, `years_experience`, `education_level`
+- Tests: extraction logic unit-tested in isolation, plus one true end-to-end test (seed a skill → upload a resume mentioning it → confirm it's in the API response)
+
+**Key decisions:**
+- **Gazetteer/dictionary matching over spaCy's statistical NER** — precise, explainable (every match traces to an exact known skill), and fast. Trade-off stated plainly: only finds skills already in the vocabulary; a brand-new framework won't be detected until seeded. Chosen deliberately over the alternative of a model that "guesses," which would trade explainability for marginal recall.
+- **`spacy.blank("en")` instead of downloading `en_core_web_sm`** — phrase matching only needs tokenization, not the full statistical pipeline; skips an unnecessary model download, keeping the Docker build lighter and faster.
+- **Regex over models for experience/education** — both are expressed in a small, conventional vocabulary on resumes; a well-tested regex is more predictable and auditable than model inference for this kind of deterministic pattern.
+- **Seed data sourced externally, not hand-invented** — 182 entries curated from a real, cited open-source dataset (Microsoft's `SkillsExtractorCognitiveSearch`) rather than a list I made up, with the provenance and the curation trade-off documented directly in the seed file's docstring.
+- **Seeding kept separate from Alembic migrations** — migrations describe schema shape; a standalone idempotent script handles reference data, so re-running it (new dev machine, CI, fresh clone) is always safe.
+- **Nullable extraction fields, not defaulted to 0/empty** — a resume where extraction hasn't run yet must be distinguishable from one where extraction ran and found nothing.
+
+**Bugs hit & root causes:** *(will be filled in as they occur against your real environment)*
+
+**Status:** 🚧 Pending your `docker compose build` + `pytest -m unit` run, plus running the seed script, to confirm.
+
+---
+
+## Milestone 6 — Embeddings & FAISS Semantic Search
 
 *(in progress — entry will be filled in as this milestone completes)*

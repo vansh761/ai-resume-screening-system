@@ -6,7 +6,7 @@ import enum
 import uuid
 from typing import List, Optional
 
-from sqlalchemy import Enum, ForeignKey, String, Text
+from sqlalchemy import Enum, Float, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base, GUID, TimestampMixin, UUIDPrimaryKeyMixin
@@ -17,6 +17,23 @@ class FileType(str, enum.Enum):
 
     PDF = "pdf"
     DOCX = "docx"
+
+
+class EducationLevel(str, enum.Enum):
+    """
+    Ordered education levels, produced by the Milestone 5 extraction
+    pipeline and consumed by the Milestone 7 scoring engine to compare
+    a candidate's education against a job's minimum requirement.
+
+    Values are ordered low-to-high so `list(EducationLevel)` can rank
+    levels directly without a separate lookup table.
+    """
+
+    HIGH_SCHOOL = "high_school"
+    ASSOCIATE = "associate"
+    BACHELOR = "bachelor"
+    MASTER = "master"
+    DOCTORATE = "doctorate"
 
 
 class Resume(Base, UUIDPrimaryKeyMixin, TimestampMixin):
@@ -42,6 +59,15 @@ class Resume(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     storage_path: Mapped[str] = mapped_column(String(500), nullable=False)
     file_type: Mapped[FileType] = mapped_column(Enum(FileType, name="file_type"), nullable=False)
     parsed_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # --- Structured extraction results (Milestone 5) ---
+    # Nullable throughout: a freshly uploaded or unparseable resume has
+    # no extracted data yet, and the API should represent that honestly
+    # rather than defaulting to a misleading 0.
+    extracted_years_experience: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    extracted_education_level: Mapped[Optional[EducationLevel]] = mapped_column(
+        Enum(EducationLevel, name="education_level"), nullable=True
+    )
 
     # --- Relationships ---
     candidate: Mapped["User"] = relationship(back_populates="resumes")

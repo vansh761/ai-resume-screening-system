@@ -80,6 +80,39 @@ def test_upload_rejects_disallowed_extension(client: TestClient) -> None:
 
 
 @pytest.mark.unit
+def test_upload_extracts_skills_experience_and_education(client: TestClient, db_session) -> None:
+    """
+    End-to-end proof that Milestone 5's extraction pipeline actually
+    runs as part of upload: seeds a known skill directly into the test
+    DB, uploads a resume mentioning it plus an experience figure and a
+    degree, and checks all three land in the API response.
+    """
+    from app.models.skill import Skill
+
+    db_session.add(Skill(name="Python", category="Programming Language"))
+    db_session.commit()
+
+    token = _signup_candidate(client, "extraction-test@example.com")
+    resume_text = (
+        "Senior Software Engineer with 6 years of experience. "
+        "Strong Python developer. Bachelor's degree in Computer Science."
+    )
+    docx_bytes = _make_docx_bytes(resume_text)
+
+    response = client.post(
+        "/api/v1/resumes/upload",
+        headers={"Authorization": f"Bearer {token}"},
+        files={"file": ("resume.docx", docx_bytes, "application/octet-stream")},
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert "Python" in body["extracted_skills"]
+    assert body["years_experience"] == 6.0
+    assert body["education_level"] == "bachelor"
+
+
+@pytest.mark.unit
 def test_upload_requires_authentication(client: TestClient) -> None:
     docx_bytes = _make_docx_bytes("Some content")
     response = client.post(
