@@ -1,24 +1,4 @@
-"""
-Database seeding script.
-
-Run with: python -m app.db.seed
-
-Design decision
-----------------
-This is idempotent — running it multiple times never creates
-duplicate rows, because it checks for an existing skill by name before
-inserting. This matters because seeding isn't a one-time setup step
-in practice: it gets re-run every time a fresh database is spun up
-(new dev machine, CI pipeline, a teammate's first `docker compose up`),
-and "safe to run repeatedly" is what makes that painless rather than
-error-prone.
-
-Kept as a standalone script (not folded into an Alembic migration)
-deliberately: migrations should describe schema *shape*, not populate
-reference data — mixing the two makes migrations harder to reason
-about and re-run. This is the same separation most production systems
-use: migrations for schema, seed scripts for reference/lookup data.
-"""
+"""Database seeding script. Run with: python -m app.db.seed"""
 
 from app.core.logging_config import configure_logging, get_logger
 from app.data.skill_seed_data import SKILL_SEED_DATA
@@ -29,7 +9,6 @@ logger = get_logger(__name__)
 
 
 def seed_skills() -> None:
-    """Inserts every skill in `SKILL_SEED_DATA` that doesn't already exist."""
     db = SessionLocal()
     try:
         existing_names = {name for (name,) in db.query(Skill.name).all()}

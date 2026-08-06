@@ -1,17 +1,4 @@
-"""
-Pydantic schemas for authentication and user data.
-
-Design decision
-----------------
-These are deliberately separate classes from the SQLAlchemy `User`
-model in `app/models/user.py`, even though the fields overlap heavily.
-This is the standard FastAPI pattern for a reason: the ORM model
-represents what's stored in the database (including `hashed_password`),
-while these schemas represent what crosses the API boundary. `UserRead`
-below has NO password field at all — it is structurally impossible to
-accidentally leak a password hash in an API response, because the
-response model doesn't have a slot for it.
-"""
+"""Pydantic schemas for authentication and user data."""
 
 import uuid
 from datetime import datetime
@@ -22,8 +9,6 @@ from app.models.user import UserRole
 
 
 class UserCreate(BaseModel):
-    """Request body for POST /auth/signup."""
-
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
     full_name: str = Field(min_length=1, max_length=255)
@@ -31,19 +16,12 @@ class UserCreate(BaseModel):
 
 
 class UserLogin(BaseModel):
-    """Request body for POST /auth/login."""
-
     email: EmailStr
     password: str
 
 
 class UserRead(BaseModel):
-    """
-    Public-facing user representation. No password field exists here —
-    by construction, not by convention — so it can never leak.
-    """
-
-    model_config = ConfigDict(from_attributes=True)  # Allows building this from an ORM object directly.
+    model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
     email: EmailStr
@@ -54,15 +32,11 @@ class UserRead(BaseModel):
 
 
 class Token(BaseModel):
-    """Response body for successful signup/login."""
-
     access_token: str
     token_type: str = "bearer"
 
 
 class TokenPayload(BaseModel):
-    """The decoded claims we expect inside a valid JWT."""
-
-    sub: str  # user ID as a string
+    sub: str
     role: UserRole
     exp: int

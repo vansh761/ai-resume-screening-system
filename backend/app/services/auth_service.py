@@ -1,17 +1,4 @@
-"""
-Authentication service layer.
-
-Design decision
-----------------
-This module has zero FastAPI imports. It only knows about SQLAlchemy
-sessions and our domain models. That's deliberate: business rules like
-"an email must be unique" or "a login requires a matching password
-hash" have nothing to do with HTTP — they're true whether triggered by
-a REST endpoint, a CLI script, or a test. Keeping this layer
-framework-agnostic is what makes it trivially unit-testable without
-spinning up a FastAPI app at all, and what would let a future CLI
-admin tool reuse this exact code.
-"""
+"""Authentication service layer."""
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -22,27 +9,18 @@ from app.schemas.user import UserCreate
 
 
 class EmailAlreadyRegisteredError(Exception):
-    """Raised when signup is attempted with an email already in use."""
+    pass
 
 
 class InvalidCredentialsError(Exception):
-    """Raised when login credentials don't match any active user."""
+    pass
 
 
 def get_user_by_email(db: Session, email: str) -> User | None:
-    """Looks up a user by email, or None if no such user exists."""
     return db.execute(select(User).where(User.email == email)).scalar_one_or_none()
 
 
 def create_user(db: Session, user_in: UserCreate) -> User:
-    """
-    Creates a new user with a hashed password.
-
-    Raises `EmailAlreadyRegisteredError` rather than letting a raw
-    database IntegrityError bubble up — the API layer shouldn't need to
-    know that "duplicate email" happens to be enforced via a unique
-    constraint; it should just handle a domain-meaningful exception.
-    """
     existing = get_user_by_email(db, user_in.email)
     if existing is not None:
         raise EmailAlreadyRegisteredError(f"Email already registered: {user_in.email}")
@@ -60,14 +38,6 @@ def create_user(db: Session, user_in: UserCreate) -> User:
 
 
 def authenticate_user(db: Session, email: str, password: str) -> User:
-    """
-    Verifies login credentials and returns the matching user.
-
-    Raises `InvalidCredentialsError` for BOTH "no such user" and "wrong
-    password" — never distinguish these in the response. Revealing
-    "that email doesn't exist" vs "wrong password" tells an attacker
-    which emails are registered, a classic user-enumeration leak.
-    """
     user = get_user_by_email(db, email)
     if user is None or not verify_password(password, user.hashed_password):
         raise InvalidCredentialsError("Incorrect email or password")

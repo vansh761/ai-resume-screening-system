@@ -1,7 +1,6 @@
 """Unit tests for education level extraction."""
 
 import pytest
-
 from app.ai.education_extraction import extract_education_level
 from app.models.resume import EducationLevel
 

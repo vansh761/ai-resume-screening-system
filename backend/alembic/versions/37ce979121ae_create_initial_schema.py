@@ -1,4 +1,4 @@
-"""create initial schema (placeholder — original migration file was lost
+"""create initial schema (placeholder -- original migration file was lost
 during a git history cleanup; the schema it describes is already
 applied to the database, confirmed via `alembic_version`. This file
 exists only to restore Alembic's revision graph, not to re-run DDL.)

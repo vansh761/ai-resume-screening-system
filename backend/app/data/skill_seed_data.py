@@ -1,28 +1,12 @@
 """
 Skill seed data.
 
-Provenance
-----------
-These entries are drawn from Microsoft's open-source
-`SkillsExtractorCognitiveSearch` dataset (MIT-licensed, archived repo):
+Provenance: curated subset (~182 entries) drawn from Microsoft's
+open-source SkillsExtractorCognitiveSearch dataset (MIT-licensed):
 https://github.com/microsoft/SkillsExtractorCognitiveSearch/blob/master/data/skill_patterns.jsonl
-
-That file contains ~2,100 spaCy EntityRuler patterns covering technical
-and business skills. This module curates a representative subset
-(~180 entries spanning languages, frameworks, databases, cloud
-platforms, DevOps tooling, data science, and soft/business skills)
-rather than reproducing the full file verbatim — chosen for signal
-density in a resume-screening context over raw completeness. The
-`category` field was inferred during curation; the upstream dataset
-does not include categorization.
-
-This is a starting point, not a ceiling: `Skill` is a normal database
-table (see `app/models/skill.py`), so it can be extended via the admin
-API (a natural Milestone 8+ feature) without any code changes here.
 """
 
 SKILL_SEED_DATA: list[dict[str, str]] = [
-    # --- Programming Languages ---
     {"name": "Python", "category": "Programming Language"},
     {"name": "Java", "category": "Programming Language"},
     {"name": "JavaScript", "category": "Programming Language"},
@@ -48,8 +32,6 @@ SKILL_SEED_DATA: list[dict[str, str]] = [
     {"name": "Fortran", "category": "Programming Language"},
     {"name": "COBOL", "category": "Programming Language"},
     {"name": "MATLAB", "category": "Programming Language"},
-
-    # --- Frontend Frameworks / Libraries ---
     {"name": "React", "category": "Frontend Framework"},
     {"name": "Angular", "category": "Frontend Framework"},
     {"name": "Vue.js", "category": "Frontend Framework"},
@@ -65,8 +47,6 @@ SKILL_SEED_DATA: list[dict[str, str]] = [
     {"name": "Bootstrap", "category": "Frontend Framework"},
     {"name": "D3.js", "category": "Frontend Framework"},
     {"name": "Three.js", "category": "Frontend Framework"},
-
-    # --- Backend Frameworks ---
     {"name": "Django", "category": "Backend Framework"},
     {"name": "Flask", "category": "Backend Framework"},
     {"name": "FastAPI", "category": "Backend Framework"},
@@ -78,8 +58,6 @@ SKILL_SEED_DATA: list[dict[str, str]] = [
     {"name": "NestJS", "category": "Backend Framework"},
     {"name": "Gin", "category": "Backend Framework"},
     {"name": "Django REST Framework", "category": "Backend Framework"},
-
-    # --- Databases ---
     {"name": "PostgreSQL", "category": "Database"},
     {"name": "MySQL", "category": "Database"},
     {"name": "MongoDB", "category": "Database"},
@@ -94,8 +72,6 @@ SKILL_SEED_DATA: list[dict[str, str]] = [
     {"name": "CouchDB", "category": "Database"},
     {"name": "MariaDB", "category": "Database"},
     {"name": "InfluxDB", "category": "Database"},
-
-    # --- Cloud Platforms ---
     {"name": "AWS", "category": "Cloud Platform"},
     {"name": "Amazon EC2", "category": "Cloud Platform"},
     {"name": "Amazon S3", "category": "Cloud Platform"},
@@ -109,8 +85,6 @@ SKILL_SEED_DATA: list[dict[str, str]] = [
     {"name": "DigitalOcean", "category": "Cloud Platform"},
     {"name": "Firebase", "category": "Cloud Platform"},
     {"name": "Cloudflare", "category": "Cloud Platform"},
-
-    # --- DevOps / Infrastructure ---
     {"name": "Docker", "category": "DevOps"},
     {"name": "Kubernetes", "category": "DevOps"},
     {"name": "Docker Compose", "category": "DevOps"},
@@ -128,8 +102,6 @@ SKILL_SEED_DATA: list[dict[str, str]] = [
     {"name": "Puppet", "category": "DevOps"},
     {"name": "Vagrant", "category": "DevOps"},
     {"name": "Datadog", "category": "DevOps"},
-
-    # --- Data Science / ML / AI ---
     {"name": "Machine Learning", "category": "Data Science"},
     {"name": "Deep Learning", "category": "Data Science"},
     {"name": "Natural Language Processing", "category": "Data Science"},
@@ -158,8 +130,6 @@ SKILL_SEED_DATA: list[dict[str, str]] = [
     {"name": "Power BI", "category": "Data Science"},
     {"name": "A/B Testing", "category": "Data Science"},
     {"name": "Statistical Analysis", "category": "Data Science"},
-
-    # --- Testing / QA ---
     {"name": "Unit Testing", "category": "Testing"},
     {"name": "Integration Testing", "category": "Testing"},
     {"name": "pytest", "category": "Testing"},
@@ -170,8 +140,6 @@ SKILL_SEED_DATA: list[dict[str, str]] = [
     {"name": "Test-Driven Development", "category": "Testing"},
     {"name": "Cucumber", "category": "Testing"},
     {"name": "Postman", "category": "Testing"},
-
-    # --- Tools / Version Control ---
     {"name": "Git", "category": "Tools"},
     {"name": "GitHub", "category": "Tools"},
     {"name": "GitLab", "category": "Tools"},
@@ -182,8 +150,6 @@ SKILL_SEED_DATA: list[dict[str, str]] = [
     {"name": "VS Code", "category": "Tools"},
     {"name": "IntelliJ IDEA", "category": "Tools"},
     {"name": "Figma", "category": "Tools"},
-
-    # --- Architecture / Concepts ---
     {"name": "REST API", "category": "Architecture"},
     {"name": "GraphQL", "category": "Architecture"},
     {"name": "Microservices", "category": "Architecture"},
@@ -199,16 +165,12 @@ SKILL_SEED_DATA: list[dict[str, str]] = [
     {"name": "Message Queues", "category": "Architecture"},
     {"name": "Event-Driven Architecture", "category": "Architecture"},
     {"name": "Domain-Driven Design", "category": "Architecture"},
-
-    # --- Security ---
     {"name": "Authentication", "category": "Security"},
     {"name": "OAuth", "category": "Security"},
     {"name": "Encryption", "category": "Security"},
     {"name": "Cryptography", "category": "Security"},
     {"name": "Computer Security", "category": "Security"},
     {"name": "Penetration Testing", "category": "Security"},
-
-    # --- Methodology / Project Management ---
     {"name": "Agile", "category": "Methodology"},
     {"name": "Scrum", "category": "Methodology"},
     {"name": "Kanban", "category": "Methodology"},
@@ -216,8 +178,6 @@ SKILL_SEED_DATA: list[dict[str, str]] = [
     {"name": "Continuous Integration", "category": "Methodology"},
     {"name": "Continuous Deployment", "category": "Methodology"},
     {"name": "Code Review", "category": "Methodology"},
-
-    # --- Business / Soft Skills ---
     {"name": "Communication", "category": "Soft Skill"},
     {"name": "Leadership", "category": "Soft Skill"},
     {"name": "Collaboration", "category": "Soft Skill"},

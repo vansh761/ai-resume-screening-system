@@ -1,6 +1,4 @@
-"""
-Job model — represents a job posting created by a recruiter.
-"""
+"""Job model."""
 
 import enum
 import uuid
@@ -13,8 +11,6 @@ from app.db.base_class import Base, GUID, TimestampMixin, UUIDPrimaryKeyMixin
 
 
 class JobStatus(str, enum.Enum):
-    """Lifecycle state of a job posting."""
-
     DRAFT = "draft"
     OPEN = "open"
     CLOSED = "closed"
@@ -22,8 +18,6 @@ class JobStatus(str, enum.Enum):
 
 
 class Job(Base, UUIDPrimaryKeyMixin, TimestampMixin):
-    """A job posting, owned by a recruiter, that candidates apply to."""
-
     __tablename__ = "jobs"
 
     recruiter_id: Mapped[uuid.UUID] = mapped_column(
@@ -38,7 +32,6 @@ class Job(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         Enum(JobStatus, name="job_status"), default=JobStatus.DRAFT, nullable=False
     )
 
-    # --- Relationships ---
     recruiter: Mapped["User"] = relationship(back_populates="jobs_posted")
     applications: Mapped[List["Application"]] = relationship(
         back_populates="job", cascade="all, delete-orphan"

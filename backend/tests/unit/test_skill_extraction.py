@@ -1,7 +1,6 @@
-"""Unit tests for skill extraction (no DB needed for the name-matching core logic)."""
+"""Unit tests for skill extraction."""
 
 import pytest
-
 from app.ai.skill_extraction import extract_skill_names
 
 SKILL_VOCAB = ["Python", "FastAPI", "PostgreSQL", "Docker", "React", "C++"]

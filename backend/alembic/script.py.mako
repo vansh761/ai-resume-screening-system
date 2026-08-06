@@ -20,6 +20,14 @@ depends_on: Union[str, Sequence[str], None] = ${repr(depends_on)}
 
 
 def upgrade() -> None:
+    # NOTE: if this migration adds a column with a NEW sa.Enum(...) type
+    # (i.e. not already used by an existing table), Postgres needs that
+    # enum TYPE created explicitly first -- CREATE TABLE auto-creates
+    # enum types as a side effect, but ALTER TABLE ADD COLUMN does not.
+    # Pattern: `my_enum = sa.Enum(..., name="..."); my_enum.create(op.get_bind(), checkfirst=True)`
+    # before the add_column call, and `.drop(op.get_bind(), checkfirst=True)`
+    # in downgrade() after dropping the column. (Hit this in Milestone 5 --
+    # see docs/MILESTONES.md for the full story.)
     ${upgrades if upgrades else "pass"}
 
 

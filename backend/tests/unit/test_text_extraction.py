@@ -1,26 +1,12 @@
-"""
-Unit tests for text extraction.
-
-We generate real, minimal PDF and DOCX files in-memory rather than
-mocking `pdfplumber`/`python-docx` — mocking the parsing library would
-only prove our code calls the mock correctly, not that extraction
-actually works against a real file. `fpdf2` (test-fixture-only, see
-requirements.txt) and `python-docx` (already a real dependency, used
-here to construct rather than read) both let us build valid files
-without needing a repo of sample resumes checked into version control.
-"""
+"""Unit tests for text extraction."""
 
 import io
-
 import pytest
 from docx import Document
 from fpdf import FPDF
 
 from app.ai.text_extraction import (
-    TextExtractionError,
-    extract_text,
-    extract_text_from_docx,
-    extract_text_from_pdf,
+    TextExtractionError, extract_text, extract_text_from_docx, extract_text_from_pdf,
 )
 from app.models.resume import FileType
 

@@ -1,7 +1,6 @@
 """Unit tests for years-of-experience extraction."""
 
 import pytest
-
 from app.ai.experience_extraction import extract_years_experience
 
 
@@ -33,5 +32,4 @@ def test_returns_none_for_empty_text() -> None:
 
 @pytest.mark.unit
 def test_rejects_implausible_values() -> None:
-    """A stray '404 years' (e.g., from a mis-matched ID number) should be filtered out."""
     assert extract_years_experience("Error code 404 years old system") is None

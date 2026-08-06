@@ -55,14 +55,6 @@ services:
         condition: service_healthy
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
-  # Milestone 10 will add:
-  #   celery_worker:  background job processing (parsing, embeddings)
-  #   celery_beat:    scheduled tasks
-  #   flower:         Celery monitoring dashboard
-  #
-  # Milestone 12 will add:
-  #   frontend:       React + Vite dev server
-
 volumes:
   postgres_data:
   redis_data:

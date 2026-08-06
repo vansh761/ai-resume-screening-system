@@ -1,7 +1,6 @@
 """Unit tests for text cleaning."""
 
 import pytest
-
 from app.ai.text_cleaning import clean_text
 
 

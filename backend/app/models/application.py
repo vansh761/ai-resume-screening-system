@@ -1,8 +1,4 @@
-"""
-Application model — the fact that a candidate's resume was submitted
-for a specific job. See Milestone 2 discussion for why this exists as
-its own entity rather than a plain many-to-many table.
-"""
+"""Application model linking a resume to a job with workflow status."""
 
 import enum
 import uuid
@@ -15,8 +11,6 @@ from app.db.base_class import Base, GUID, TimestampMixin, UUIDPrimaryKeyMixin
 
 
 class ApplicationStatus(str, enum.Enum):
-    """Workflow state of a single application, tracked independently of scoring."""
-
     APPLIED = "applied"
     UNDER_REVIEW = "under_review"
     SHORTLISTED = "shortlisted"
@@ -25,14 +19,8 @@ class ApplicationStatus(str, enum.Enum):
 
 
 class Application(Base, UUIDPrimaryKeyMixin, TimestampMixin):
-    """A candidate's resume submitted against a specific job posting."""
-
     __tablename__ = "applications"
     __table_args__ = (
-        # A candidate shouldn't be able to apply to the same job twice
-        # with the same resume — this constraint enforces that at the
-        # database level, not just in application code (which can be
-        # bypassed by a race condition or a direct DB write).
         UniqueConstraint("job_id", "resume_id", name="uq_application_job_resume"),
     )
 
@@ -48,7 +36,6 @@ class Application(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         nullable=False,
     )
 
-    # --- Relationships ---
     job: Mapped["Job"] = relationship(back_populates="applications")
     resume: Mapped["Resume"] = relationship(back_populates="applications")
     score: Mapped[Optional["Score"]] = relationship(

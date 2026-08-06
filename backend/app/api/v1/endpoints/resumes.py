@@ -1,10 +1,4 @@
-"""
-Resume endpoints: upload, fetch, and list — all scoped to the
-authenticated candidate. Recruiter access to candidate resumes (for
-reviewing applications) comes in a later milestone once applications
-exist end-to-end; deliberately out of scope here to keep this
-milestone's surface area focused on upload + parsing.
-"""
+"""Resume endpoints: upload, fetch, and list -- scoped to the authenticated candidate."""
 
 import uuid
 
@@ -28,16 +22,6 @@ router = APIRouter(prefix="/resumes", tags=["Resumes"])
 
 
 def _to_resume_read(resume: Resume) -> ResumeRead:
-    """
-    Builds a `ResumeRead` from a `Resume` ORM object.
-
-    Not a plain `ResumeRead.model_validate(resume)` because
-    `extracted_skills` is derived from the `resume_skills` relationship
-    (a list of `ResumeSkill` join rows, each pointing to a `Skill`),
-    not a direct column on `Resume` -- `from_attributes` conversion has
-    no way to know how to flatten that relationship into a list of
-    names on its own.
-    """
     return ResumeRead(
         id=resume.id,
         original_filename=resume.original_filename,
@@ -56,15 +40,6 @@ async def upload_resume_endpoint(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(UserRole.CANDIDATE)),
 ) -> ResumeRead:
-    """
-    Uploads a resume (PDF or DOCX) for the authenticated candidate.
-
-    Reads the entire file into memory before validation — acceptable
-    for the size limits configured here (default 10 MB); a truly
-    large-file-tolerant version would stream and check size
-    incrementally, a documented future improvement once real usage
-    patterns justify the added complexity.
-    """
     file_bytes = await file.read()
 
     try:
@@ -82,7 +57,6 @@ def list_my_resumes(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(UserRole.CANDIDATE)),
 ) -> list[ResumeSummary]:
-    """Lists all resumes uploaded by the authenticated candidate."""
     resumes = list_resumes_for_candidate(db, current_user.id)
     return [
         ResumeSummary(
@@ -102,13 +76,6 @@ def get_my_resume(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(UserRole.CANDIDATE)),
 ) -> ResumeRead:
-    """
-    Fetches a single resume, including its full parsed text.
-
-    Returns 404 (not 403) when the resume belongs to someone else --
-    see `get_resume_for_candidate`'s docstring for why that
-    distinction matters.
-    """
     resume = get_resume_for_candidate(db, resume_id, current_user.id)
     if resume is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resume not found")
