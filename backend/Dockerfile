@@ -8,7 +8,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-RUN pip install --default-timeout=1000 --no-cache-dir --user -r requirements.txt
+
+# Install CPU-only PyTorch FIRST, from PyTorch's own CPU wheel index.
+# Why: sentence-transformers depends on torch>=1.11.0 with no upper
+# bound, and pip's default resolver on Linux picks the CUDA-enabled
+# build (500MB+ torch, plus gigabytes of NVIDIA CUDA libraries) even
+# though this container has no GPU and never will. Installing the
+# small CPU-only wheel here means when sentence-transformers is
+# installed next, pip sees torch's version constraint is already
+# satisfied and never attempts the CUDA download at all.
+RUN pip install --no-cache-dir --user --default-timeout=1000 \
+    torch==2.3.1+cpu --index-url https://download.pytorch.org/whl/cpu
+
+RUN pip install --no-cache-dir --user --default-timeout=1000 -r requirements.txt
 
 # --- Stage 2: runtime image ---
 FROM python:3.11-slim AS runtime
@@ -27,18 +39,6 @@ ENV PATH=/home/appuser/.local/bin:$PATH \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
-# Pre-download and cache the sentence-transformer model at BUILD time,
-# not at first request/test run.
-#
-# Why this matters: without this step, the first time
-# `get_embedding_model()` runs (whether that's a real API request or
-# the very first `pytest` run) triggers a ~80MB download from
-# HuggingFace's model hub. That means: (1) the first API call after a
-# fresh deploy is unexpectedly slow and network-dependent, and (2) test
-# runs require internet access and add real latency to CI. Baking the
-# model into the image layer means it's already on disk before the
-# container ever starts serving traffic -- a genuinely "production"
-# habit, not just a convenience.
 RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
 
 EXPOSE 8000

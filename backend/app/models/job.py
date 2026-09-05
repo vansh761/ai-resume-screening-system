@@ -2,12 +2,13 @@
 
 import enum
 import uuid
-from typing import List
+from typing import List, Optional
 
-from sqlalchemy import Enum, ForeignKey, Integer, String, Text
+from sqlalchemy import Enum, Float, ForeignKey, Integer, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base, GUID, TimestampMixin, UUIDPrimaryKeyMixin
+from app.models.resume import EducationLevel
 
 
 class JobStatus(str, enum.Enum):
@@ -18,6 +19,8 @@ class JobStatus(str, enum.Enum):
 
 
 class Job(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    """A job posting, owned by a recruiter, that candidates apply to."""
+
     __tablename__ = "jobs"
 
     recruiter_id: Mapped[uuid.UUID] = mapped_column(
@@ -28,6 +31,12 @@ class Job(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     department: Mapped[str] = mapped_column(String(100), nullable=True)
     location: Mapped[str] = mapped_column(String(255), nullable=True)
     min_experience_years: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    min_education_level: Mapped[Optional[EducationLevel]] = mapped_column(
+        Enum(EducationLevel, name="education_level"), nullable=True
+    )
+    embedding: Mapped[Optional[list[float]]] = mapped_column(JSON, nullable=True)
+
     status: Mapped[JobStatus] = mapped_column(
         Enum(JobStatus, name="job_status"), default=JobStatus.DRAFT, nullable=False
     )
