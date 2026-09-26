@@ -62,7 +62,7 @@ class Settings(BaseSettings):
 
     # --- LLM-based insights (Milestone 9) ---
     GEMINI_API_KEY: str = Field(default="")
-    GEMINI_MODEL_NAME: str = "gemini-3.8-flash"
+    GEMINI_MODEL_NAME: str = "gemini-3.5-flash-lite"
 
     @field_validator("DATABASE_URL", mode="before")
     @classmethod
