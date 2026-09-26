@@ -4,7 +4,7 @@ import enum
 import uuid
 from typing import Optional
 
-from sqlalchemy import Enum, ForeignKey, UniqueConstraint
+from sqlalchemy import Enum, ForeignKey, JSON, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base, GUID, TimestampMixin, UUIDPrimaryKeyMixin
@@ -35,6 +35,12 @@ class Application(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         default=ApplicationStatus.APPLIED,
         nullable=False,
     )
+
+    # --- LLM-generated interview questions (Milestone 9) ---
+    # Lives on Application, not Resume, because questions are tailored
+    # to a specific resume-job pairing -- the same resume applied to a
+    # different job would warrant different questions.
+    interview_questions: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True)
 
     job: Mapped["Job"] = relationship(back_populates="applications")
     resume: Mapped["Resume"] = relationship(back_populates="applications")

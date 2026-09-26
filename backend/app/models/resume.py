@@ -61,6 +61,15 @@ class Resume(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     # same reasoning as Score.explanation in Milestone 2.
     embedding: Mapped[Optional[list[float]]] = mapped_column(JSON, nullable=True)
 
+    # --- LLM-generated insights (Milestone 9) ---
+    # Lazily generated and cached on first request, not computed
+    # automatically at upload time like the embedding -- LLM API calls
+    # are the scarce resource here (free-tier rate limits), unlike
+    # local embedding generation, so we only pay that cost when someone
+    # actually asks for it, once.
+    ai_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    improvement_suggestions: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True)
+
     # --- Relationships ---
     candidate: Mapped["User"] = relationship(back_populates="resumes")
     applications: Mapped[List["Application"]] = relationship(

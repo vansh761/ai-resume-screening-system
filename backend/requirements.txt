@@ -40,3 +40,6 @@ fpdf2==2.7.9
 # --- Dev tooling ---
 black==24.8.0
 ruff==0.6.9
+
+# --- LLM-based insights (Milestone 9) ---
+google-genai==0.3.0

@@ -60,6 +60,10 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL_NAME: str = "all-MiniLM-L6-v2"
     EMBEDDING_DIMENSION: int = 384
 
+    # --- LLM-based insights (Milestone 9) ---
+    GEMINI_API_KEY: str = Field(default="")
+    GEMINI_MODEL_NAME: str = "gemini-3.8-flash"
+
     @field_validator("DATABASE_URL", mode="before")
     @classmethod
     def assemble_db_url(cls, v: str | None, info) -> str:
