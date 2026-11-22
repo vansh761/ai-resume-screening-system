@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.ai.scoring import compute_score
 from app.models.application import Application, ApplicationStatus
 from app.models.job import Job
-from app.models.resume import Resume
+from app.models.resume import ProcessingStatus, Resume
 from app.models.score import Score
 
 
@@ -23,9 +23,22 @@ class ResumeNotOwnedError(Exception):
     pass
 
 
+class ResumeNotReadyError(Exception):
+    pass
+
+
 def create_application(db: Session, candidate_id: uuid.UUID, job: Job, resume: Resume) -> Application:
     if resume.candidate_id != candidate_id:
         raise ResumeNotOwnedError("You can only apply using your own resume.")
+
+    # Scoring runs immediately and is persisted, so applying with a resume
+    # that hasn't finished processing would save a misleading near-zero
+    # score permanently.
+    if resume.processing_status != ProcessingStatus.COMPLETED:
+        raise ResumeNotReadyError(
+            "This resume has not finished processing (or processing failed). "
+            "Wait until its status is 'completed' before applying."
+        )
 
     existing = db.execute(
         select(Application).where(Application.job_id == job.id, Application.resume_id == resume.id)

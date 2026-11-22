@@ -26,6 +26,7 @@ def _to_resume_read(resume: Resume) -> ResumeRead:
         id=resume.id,
         original_filename=resume.original_filename,
         file_type=resume.file_type,
+        processing_status=resume.processing_status,
         parsed_text=resume.parsed_text,
         created_at=resume.created_at,
         extracted_skills=sorted(rs.skill.name for rs in resume.resume_skills),
@@ -40,6 +41,14 @@ async def upload_resume_endpoint(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(UserRole.CANDIDATE)),
 ) -> ResumeRead:
+    """
+    Stores the resume and queues it for background processing.
+
+    201 (not 202) because the Resume resource genuinely exists after
+    this call; the body's `processing_status` ("pending" until a worker
+    finishes) tells the client the asynchronous part is still running.
+    Poll GET /resumes/{id} until it becomes "completed" or "failed".
+    """
     file_bytes = await file.read()
 
     try:
@@ -63,6 +72,7 @@ def list_my_resumes(
             id=r.id,
             original_filename=r.original_filename,
             file_type=r.file_type,
+            processing_status=r.processing_status,
             created_at=r.created_at,
             has_parsed_text=r.parsed_text is not None,
         )

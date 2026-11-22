@@ -30,6 +30,24 @@ class EducationLevel(str, enum.Enum):
     DOCTORATE = "doctorate"
 
 
+class ProcessingStatus(str, enum.Enum):
+    """
+    Lifecycle of a resume's background processing (Milestone 10).
+
+    PENDING   - uploaded and stored; text extraction/NLP/embedding not finished
+    COMPLETED - fully processed; safe to score, search, and summarize
+    FAILED    - processing failed permanently (e.g. unreadable file)
+
+    Explicit, rather than inferring state from "parsed_text is None":
+    once processing is asynchronous, None is ambiguous between "still
+    running" and "failed".
+    """
+
+    PENDING = "pending"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
 class Resume(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     """
     An uploaded resume belonging to a candidate.
@@ -44,6 +62,18 @@ class Resume(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     storage_path: Mapped[str] = mapped_column(String(500), nullable=False)
     file_type: Mapped[FileType] = mapped_column(Enum(FileType, name="file_type"), nullable=False)
     parsed_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # --- Background processing state (Milestone 10) ---
+    # native_enum=False -> VARCHAR column instead of a Postgres ENUM type
+    # (avoids the ALTER TABLE ADD COLUMN enum-type gotcha from Milestone 5).
+    # server_default backfills pre-existing rows as COMPLETED: every resume
+    # uploaded before this milestone was processed synchronously.
+    processing_status: Mapped[ProcessingStatus] = mapped_column(
+        Enum(ProcessingStatus, name="processing_status", native_enum=False, length=20),
+        default=ProcessingStatus.PENDING,
+        server_default=ProcessingStatus.COMPLETED.name,
+        nullable=False,
+    )
 
     # --- Structured extraction results (Milestone 5) ---
     extracted_years_experience: Mapped[Optional[float]] = mapped_column(Float, nullable=True)

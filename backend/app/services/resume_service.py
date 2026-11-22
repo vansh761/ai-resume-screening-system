@@ -1,5 +1,16 @@
 """
 Resume upload service.
+
+Since Milestone 10, uploading is fast and asynchronous: validate, store
+the file, create the Resume row as PENDING, commit, then enqueue
+background processing (app/services/resume_processing_service.py,
+executed by a Celery worker).
+
+Commit BEFORE enqueue: the worker must be able to see the row.
+Known gap: if this process dies between the commit and the enqueue,
+the resume stays PENDING forever. Production fixes are a periodic
+sweeper (Celery Beat) that re-enqueues stale PENDING resumes, or a
+transactional outbox. Not built here; documented on purpose.
 """
 
 import uuid
@@ -8,16 +19,9 @@ from typing import Sequence
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.ai.education_extraction import extract_education_level
-from app.ai.embeddings import embed_text
-from app.ai.experience_extraction import extract_years_experience
-from app.ai.skill_extraction import extract_skills_for_resume
-from app.ai.text_cleaning import clean_text
-from app.ai.text_extraction import TextExtractionError, extract_text
 from app.core.config import settings
 from app.core.logging_config import get_logger
-from app.models.resume import FileType, Resume
-from app.models.skill import ResumeSkill
+from app.models.resume import FileType, ProcessingStatus, Resume
 from app.models.user import User
 from app.services.storage import get_storage_backend
 
@@ -54,9 +58,27 @@ def _validate_and_resolve_file_type(filename: str, file_bytes: bytes) -> FileTyp
     return ALLOWED_EXTENSION_TO_FILETYPE[suffix]
 
 
+def dispatch_resume_processing(resume_id: uuid.UUID) -> None:
+    """
+    Enqueues background processing for a resume.
+
+    This is a deliberate seam: it is a module-level function so tests
+    can replace it with an inline runner (see tests/unit/conftest.py).
+    The Celery import is lazy so merely importing this module never
+    touches the broker.
+    """
+    from app.workers.tasks import process_resume_task
+
+    process_resume_task.delay(str(resume_id))
+
+
 def upload_resume(db: Session, candidate: User, filename: str, file_bytes: bytes) -> Resume:
     """
-    Validates, stores, and parses a resume upload for the given candidate.
+    Validates and stores an upload, then enqueues processing.
+
+    Returns the Resume immediately, typically still PENDING. If the
+    broker is unreachable the resume is marked FAILED (visible to the
+    user) rather than left PENDING forever.
     """
     file_type = _validate_and_resolve_file_type(filename, file_bytes)
 
@@ -70,43 +92,19 @@ def upload_resume(db: Session, candidate: User, filename: str, file_bytes: bytes
         storage_path=storage_key,
         file_type=file_type,
         parsed_text=None,
+        processing_status=ProcessingStatus.PENDING,
     )
     db.add(resume)
     db.commit()
     db.refresh(resume)
 
     try:
-        raw_text = extract_text(file_bytes, file_type)
-        resume.parsed_text = clean_text(raw_text)
+        dispatch_resume_processing(resume.id)
+    except Exception:
+        logger.exception(f"Failed to enqueue processing for resume {resume.id}")
+        db.rollback()
+        resume.processing_status = ProcessingStatus.FAILED
         db.commit()
-        db.refresh(resume)
-
-        # Structured extraction (Milestone 5)
-        matched_skills = extract_skills_for_resume(db, resume.parsed_text)
-        for skill in matched_skills:
-            db.add(ResumeSkill(resume_id=resume.id, skill_id=skill.id))
-
-        resume.extracted_years_experience = extract_years_experience(resume.parsed_text)
-        resume.extracted_education_level = extract_education_level(resume.parsed_text)
-
-        # Semantic embedding (Milestone 6): computed once at upload
-        # time and persisted, so semantic search never needs to re-run
-        # the model at query time for existing resumes -- see
-        # app/ai/faiss_index.py's docstring for the full reasoning.
-        try:
-            resume.embedding = embed_text(resume.parsed_text)
-        except Exception as embed_exc:
-            # Embedding failure shouldn't block the upload any more than
-            # a parsing failure should -- the resume and its skills/
-            # experience/education are still valid and useful without
-            # a semantic vector. It just won't show up in similarity
-            # search results until re-processed.
-            logger.warning(f"Embedding generation failed for resume {resume.id}: {embed_exc}")
-
-        db.commit()
-        db.refresh(resume)
-    except TextExtractionError as exc:
-        logger.warning(f"Text extraction failed for resume {resume.id}: {exc}")
 
     return resume
 

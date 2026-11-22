@@ -6,7 +6,7 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict
 
-from app.models.resume import EducationLevel, FileType
+from app.models.resume import EducationLevel, FileType, ProcessingStatus
 
 
 class ResumeRead(BaseModel):
@@ -15,6 +15,7 @@ class ResumeRead(BaseModel):
     id: uuid.UUID
     original_filename: str
     file_type: FileType
+    processing_status: ProcessingStatus
     parsed_text: Optional[str]
     created_at: datetime
     extracted_skills: list[str] = []
@@ -28,5 +29,6 @@ class ResumeSummary(BaseModel):
     id: uuid.UUID
     original_filename: str
     file_type: FileType
+    processing_status: ProcessingStatus
     created_at: datetime
     has_parsed_text: bool = False

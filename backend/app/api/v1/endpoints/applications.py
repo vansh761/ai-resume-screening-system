@@ -12,6 +12,7 @@ from app.schemas.application import ApplicationCreate, ApplicationRead
 from app.services.application_service import (
     DuplicateApplicationError,
     ResumeNotOwnedError,
+    ResumeNotReadyError,
     create_application,
     list_applications_for_candidate,
     list_applications_for_job,
@@ -42,6 +43,8 @@ def apply_to_job(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
     except ResumeNotOwnedError as exc:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
+    except ResumeNotReadyError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
 
     return application
 
