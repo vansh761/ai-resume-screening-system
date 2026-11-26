@@ -191,4 +191,40 @@ the most relevant resumes ranked by similarity.
 
 ## Milestone 10 — Background Processing (Celery)
 
-*(in progress)*
+**Goal:** Stop making the person uploading a resume wait for text extraction, NLP and embedding.
+
+**What we built:**
+- `POST /resumes/upload` now validates and stores the file, creates the `Resume` as PENDING, commits, then enqueues a Celery task. Clients poll `GET /resumes/{id}` until the status is `completed` or `failed`
+- `Resume.processing_status` (PENDING / COMPLETED / FAILED), stored as VARCHAR with `native_enum=False` so the migration avoids the Postgres ALTER TABLE enum problem from Milestone 5. A COMPLETED server default backfills older rows truthfully, since they were processed synchronously
+- `app/services/resume_processing_service.py`: the pipeline as a plain function taking a Session, with no Celery in it. `app/workers/tasks.py` is a thin wrapper around it
+- `app/workers/celery_app.py`: Redis broker, JSON-only serialization, `acks_late`, `reject_on_worker_lost`, prefetch 1
+- 409 guards: applying with, or requesting AI insights for, a resume that is not COMPLETED, so a half-processed resume can never receive a permanent near-zero score or burn LLM quota
+- A `worker` service in docker-compose that reuses the API image, plus `scripts/requeue_stale_pending.py` to recover stuck resumes
+- 13 new tests (122 total)
+
+**Key decisions:**
+- Commit before enqueue, so the worker can see the row
+- The pipeline is idempotent because `acks_late` means at-least-once delivery: it skips COMPLETED resumes and clears old `ResumeSkill` rows before re-adding them
+- Permanent failures (unreadable file) mark the resume FAILED and do not retry; transient database errors retry with backoff and jitter
+- Tests replace `dispatch_resume_processing` with an inline runner instead of using `task_always_eager`: the real task opens its own Postgres session, while tests use an in-memory SQLite session
+- 201, not 202, because the Resume resource exists immediately
+- LLM insights stay synchronous: they are explicit, on-demand requests where a few seconds is acceptable
+- Local file storage works across the API and worker only because both mount `./backend`; production would swap in an S3 backend behind the `StorageBackend` interface
+
+**Measured on a 2-core, 2.8 GB machine:** upload returns in 0.05-0.9s; warm processing takes 2-3s; the first task after a worker restart takes about 28s, of which 23.6s is loading the embedding model; a corrupt file reaches FAILED in under a second; a task enqueued while no worker was running (queue length 1) was processed after the worker started.
+
+**Bugs hit & root causes:**
+- All 122 tests passed but the live upload returned 500: `PermissionError: 'uploads'`. The container user cannot create a directory inside the bind mount, and the tests redirect storage to a temp directory, so no test ever touched the real filesystem. Fixed by creating the directory with the right permissions
+- uvicorn `--reload` was watching all of `/app`, including a leftover 45,092-file virtualenv on a WSL bind mount. Idle API CPU was about 82%, requests timed out and cold starts took minutes. Deleting the virtualenv and using `--reload-dir app` dropped idle CPU to 1.3%, and the first task fell from 116-194s to 28s
+- The same stray virtualenv made the Docker build context 459 MB (17 minutes to transfer) and `COPY . .` had been copying `backend/.env` into the image. Added `backend/.dockerignore`
+- Giving the worker its own `build:` block triggered a rebuild that failed on DNS inside WSL. Fixed by reusing the API image with `pull_policy: never`
+- `docker compose exec` rejects heredocs unless you pass `-T`; and scripts run as `python scripts/x.py` put `scripts/` on the import path, not `/app`
+- One task that a worker had received was never completed and left a resume PENDING for days. The cause was not established; the requeue script recovered it
+
+**Known gaps (deliberate):**
+- Stale-PENDING recovery is a manual script. A Celery Beat sweeper or a transactional outbox is the production answer, and this is also the window between the commit and the enqueue if the API dies there
+- `concurrency=1`, and each worker process loads its own copy of the model
+- No task monitoring such as Flower
+- `DEBUG=true` echoes every SQL statement into the API and worker logs
+
+**Status:** Done. 122 tests passing, and the async path verified end to end against real Redis, Postgres and a worker.
