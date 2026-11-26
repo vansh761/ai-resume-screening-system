@@ -27,6 +27,7 @@ Failure handling
     absent from semantic search until reprocessed.
 """
 
+import time
 import uuid
 
 from sqlalchemy import delete
@@ -77,12 +78,15 @@ def process_resume(
     storage = storage or get_storage_backend()
 
     try:
+        t0 = time.perf_counter()
         file_bytes = storage.read(resume.storage_path)
         raw_text = extract_text(file_bytes, resume.file_type)
         resume.parsed_text = clean_text(raw_text)
         db.commit()
+        t_text = time.perf_counter()
 
         matched_skills = extract_skills_for_resume(db, resume.parsed_text)
+        t_skills = time.perf_counter()
         db.execute(delete(ResumeSkill).where(ResumeSkill.resume_id == resume.id))
         for skill in matched_skills:
             db.add(ResumeSkill(resume_id=resume.id, skill_id=skill.id))
@@ -90,13 +94,20 @@ def process_resume(
         resume.extracted_years_experience = extract_years_experience(resume.parsed_text)
         resume.extracted_education_level = extract_education_level(resume.parsed_text)
 
+        t_extract = time.perf_counter()
         try:
             resume.embedding = embed_text(resume.parsed_text)
         except Exception as embed_exc:
             logger.warning(f"Embedding generation failed for resume {resume_id}: {embed_exc}")
+        t_embed = time.perf_counter()
 
         resume.processing_status = ProcessingStatus.COMPLETED
         db.commit()
+        logger.info(
+            f"resume {resume_id} timings: text={t_text - t0:.2f}s skills={t_skills - t_text:.2f}s "
+            f"other_extraction={t_extract - t_skills:.2f}s embedding={t_embed - t_extract:.2f}s "
+            f"commit={time.perf_counter() - t_embed:.2f}s total={time.perf_counter() - t0:.2f}s"
+        )
     except OperationalError:
         db.rollback()
         raise

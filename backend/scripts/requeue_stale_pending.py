@@ -8,6 +8,10 @@ Run:  docker compose exec -T backend python scripts/requeue_stale_pending.py [mi
 
 import sys
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+# Run as `python scripts/x.py`, sys.path holds scripts/, not /app
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from sqlalchemy import select
 

@@ -117,6 +117,78 @@ the most relevant resumes ranked by similarity.
 
 ---
 
-## Milestone 7 — Explainable Scoring Engine
+## Milestone 7 — Job CRUD & Explainable Scoring Engine
 
-*(upcoming)*
+**Goal:** Recruiters post jobs, candidates apply with a resume, and every application gets a score a recruiter can audit factor by factor.
+
+**What we built:**
+- `Job` gained `min_education_level` and `embedding`; endpoints to create, list, fetch and open/close jobs (recruiters see their own jobs; candidates see only OPEN ones)
+- `POST /applications/` creates an application and scores it immediately; `GET /applications/for-job/{id}` returns applicants ranked best-fit first
+- `app/ai/scoring.py`: eight factors combined with fixed, published weights (skills 0.30, semantic similarity 0.20, experience 0.15, education 0.10, ATS 0.10, resume quality 0.10, certifications 0.025, projects 0.025). Each factor's inputs and the weights themselves are stored in `Score.explanation`
+
+**Key decisions:**
+- Honest about factor quality: skills, experience, education and semantic similarity use extracted or computed data; ATS and quality are structural heuristics; certifications and projects are keyword counts with deliberately low weight
+- Missing data earns nothing: a job requiring 3 years of experience scores 0 on that factor when none could be extracted (not 100); a job with no requirement scores 100
+- Required skills count 70%, preferred skills 30%
+- Scoring runs synchronously at apply time (Milestone 10 later added a guard so only fully processed resumes can be scored)
+- Someone else's resume or a draft job returns 404, not 403, so existence isn't revealed
+
+**Bugs hit & root causes:**
+- The Milestone 7 files had not actually been copied into the project, so the first migration was generated against the old `Job` model and lacked both new columns. Caught by reading the migration before applying it and by running `cat` on the model inside the container. Lesson: verify what the container sees, not what you think you copied.
+- The no-op placeholder migration from the Milestone 4/5 recovery worked on the old database but could not survive a fresh one (it would have skipped creating every table). Found by setting the project up from scratch; replaced with one clean baseline migration.
+- The Docker build pulled the CUDA build of PyTorch (gigabytes) and timed out. Fixed by installing the CPU-only wheel first.
+
+**Status:** Done, 88 tests passing.
+
+---
+
+## Milestone 8 — Clustering, Duplicate Detection & Similar Candidates
+
+**Goal:** Reuse the stored embeddings to answer three recruiter questions: what groups exist among my applicants, which resumes are duplicates, and who else looks like this candidate.
+
+**What we built:**
+- `GET /analysis/jobs/{id}/clusters`: k-means over a job's applicants, labelled by each cluster's three most common skills
+- `GET /analysis/duplicates`: pairwise cosine similarity at or above 0.97
+- `GET /analysis/resumes/{id}/similar`: FAISS search using the resume's own embedding as the query, excluding itself
+
+**Key decisions:**
+- Cluster count is a simple heuristic (one per ~3 applicants, capped at 6) rather than the elbow method or silhouette analysis; at dozens of applicants per job those add complexity without real benefit
+- Duplicate detection is O(n²). That is fine for hundreds of resumes and wrong for millions, where locality-sensitive hashing or an approximate nearest-neighbour index would replace it. The 0.97 threshold is high on purpose so two similar backend engineers aren't flagged
+- Clusters are scoped to one job's applicants because that is the decision a recruiter actually makes
+- Recruiters can query any resume's neighbours (system-wide visibility is the point of these tools), unlike the candidate-scoped resume endpoints
+
+**Bugs hit & root causes:** None worth recording; 102 tests passed on the first run.
+
+**Status:** Done.
+
+---
+
+## Milestone 9 — LLM Insights (Gemini)
+
+**Goal:** Recruiter-facing interview questions and candidate-facing summaries and resume improvement suggestions.
+
+**What we built:**
+- `app/ai/llm_client.py`: Gemini via the `google-genai` SDK in JSON mode, one error type (`LLMGenerationError`) for every failure, retry with exponential backoff for 503/429 only
+- `app/ai/resume_insights.py`: prompts with fixed output shapes for summary, interview questions (tailored to the resume-job pair) and improvement suggestions
+- `GET /insights/resumes/{id}/summary` and `/improvements` (candidate-scoped), `GET /insights/applications/{id}/interview-questions` (scoped to the job's recruiter); 503 when the LLM is unavailable
+- Results cached in `Resume.ai_summary`, `Resume.improvement_suggestions` and `Application.interview_questions`
+
+**Key decisions:**
+- Hosted free-tier API rather than a small local model: paid APIs were ruled out on cost, and small local models are weak at open-ended generation and add another heavy dependency
+- Lazy generation plus caching: at the time of the build the free tier allowed roughly 10 requests per minute and 250 per day, so the LLM is called at most once per item
+- `google-genai`, not `google-generativeai` (sunset in November 2025)
+- The real-API test sits behind its own pytest marker so it never runs by default or spends quota
+
+**Bugs hit & root causes:**
+- Model names are moving targets: `gemini-2.5-flash` returned 404 for new users, `gemini-3.8-flash` returned 503 from heavy demand, and `gemini-3.5-flash-lite` worked. The real-API test caught each one. The model name lives in config, not code
+- The 503s motivated the retry logic; it only retries transient errors because retrying a bad key just delays the same failure
+- `.env` had been tracked by git since Milestone 1, before `.gitignore` existed. `git log` showed it was only ever committed with placeholder values, never the Gemini key, and it was untracked before the first commit that could have included the key
+- Two tests failed because they committed a `Resume` without an owner (NOT NULL constraint). Tests that only build objects in memory never hit database constraints; tests that commit do
+
+**Status:** Done, 109 tests plus the real-API test passing.
+
+---
+
+## Milestone 10 — Background Processing (Celery)
+
+*(in progress)*
